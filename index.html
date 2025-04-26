@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Stock Management</title>
+  <link rel="stylesheet" href="Stock.css" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+      background-color: #f4f4f4;
+    }
+    .container {
+      max-width: 1000px;
+      margin: auto;
+      background: #fff;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+    }
+    input, button {
+      margin: 5px 10px;
+      padding: 10px;
+      font-size: 14px;
+    }
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 5px;
+    }
+    .blue-btn {
+      background-color: #3498db;
+      color: white;
+    }
+    .green-btn {
+      background-color: #2ecc71;
+      color: white;
+    }
+    .red-btn {
+      background-color: #e74c3c;
+      color: white;
+    }
+    .orange-btn {
+      background-color: #f39c12;
+      color: white;
+    }
+    table {
+      width: 100%;
+      margin-top: 20px;
+      border-collapse: collapse;
+    }
+    th, td {
+      padding: 10px;
+      text-align: center;
+      border: 1px solid #ccc;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h2>Stock Entry</h2>
+  <input type="text" id="itemName" placeholder="Item Name">
+  <input type="number" id="price" placeholder="Price">
+  <input type="number" id="quantity" placeholder="Quantity">
+  <input type="text" id="supplier" placeholder="Supplier">
+  <button class="blue-btn" onclick="addStock()">Add Stock</button>
+  <button class="green-btn" onclick="doneStock()">Done</button>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th>Price</th>
+        <th>Quantity</th>
+        <th>Supplier</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="stockTableBody"></tbody>
+  </table>
+</div>
+
+<!-- Firebase JS SDKs -->
+<script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-analytics-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-database-compat.js"></script>
+
+<script>
+  // Firebase config
+  const firebaseConfig = {
+    apiKey: "AIzaSyCddKRuTHpHtaQ0rLOkMOAb5q6slJ3-ybs",
+    authDomain: "project-29b6a.firebaseapp.com",
+    databaseURL: "https://project-29b6a-default-rtdb.firebaseio.com",
+    projectId: "project-29b6a",
+    storageBucket: "project-29b6a.firebasestorage.app",
+    messagingSenderId: "731238594321",
+    appId: "1:731238594321:web:71c168ad6f35df2944feb0",
+    measurementId: "G-009NX2LKRX"
+  };
+
+  // Initialize Firebase
+  firebase.initializeApp(firebaseConfig);
+  firebase.analytics();
+  const db = firebase.database();
+
+  const stockRef = db.ref("stock");
+  const stocklistRef = db.ref("stocklist");
+
+  function addStock() {
+    const itemName = document.getElementById("itemName").value.trim();
+    const price = document.getElementById("price").value;
+    const quantity = document.getElementById("quantity").value;
+    const supplier = document.getElementById("supplier").value.trim();
+
+    if (!itemName || !price || !quantity || !supplier) {
+      alert("Fill in all fields!");
+      return;
+    }
+
+    stockRef.once("value", (snapshot) => {
+      const data = snapshot.val();
+      let duplicate = false;
+
+      if (data) {
+        Object.values(data).forEach(item => {
+          if (item.ItemName.toLowerCase() === itemName.toLowerCase()) {
+            duplicate = true;
+          }
+        });
+      }
+
+      if (duplicate) {
+        alert("Item with this name already exists!");
+        return;
+      }
+
+      const newRef = stockRef.push();
+      newRef.set({
+        ItemName: itemName,
+        Price: price,
+        Quantity: quantity,
+        Supplier: supplier
+      }).then(() => {
+        document.getElementById("itemName").value = "";
+        document.getElementById("price").value = "";
+        document.getElementById("quantity").value = "";
+        document.getElementById("supplier").value = "";
+        loadStock();
+      });
+    });
+  }
+
+  function loadStock() {
+    stockRef.on("value", (snapshot) => {
+      const data = snapshot.val();
+      const tbody = document.getElementById("stockTableBody");
+      tbody.innerHTML = "";
+
+      if (data) {
+        Object.entries(data).forEach(([key, item]) => {
+          tbody.innerHTML += `
+            <tr>
+              <td>${item.ItemName}</td>
+              <td>${item.Price}</td>
+              <td>${item.Quantity}</td>
+              <td>${item.Supplier}</td>
+              <td>
+                <button class="orange-btn" onclick="editItem('${key}', '${item.ItemName}', ${item.Price}, ${item.Quantity}, '${item.Supplier}')">Edit</button>
+                <button class="red-btn" onclick="deleteItem('${key}')">Delete</button>
+              </td>
+            </tr>
+          `;
+        });
+      }
+    });
+  }
+
+  function editItem(key, itemName, price, quantity, supplier) {
+    document.getElementById("itemName").value = itemName;
+    document.getElementById("price").value = price;
+    document.getElementById("quantity").value = quantity;
+    document.getElementById("supplier").value = supplier;
+
+    const addBtn = document.querySelector(".blue-btn");
+    addBtn.textContent = "Update Stock";
+    addBtn.onclick = function () {
+      const updatedItem = {
+        ItemName: document.getElementById("itemName").value.trim(),
+        Price: document.getElementById("price").value,
+        Quantity: document.getElementById("quantity").value,
+        Supplier: document.getElementById("supplier").value.trim()
+      };
+
+      db.ref(`stock/${key}`).update(updatedItem).then(() => {
+        document.getElementById("itemName").value = "";
+        document.getElementById("price").value = "";
+        document.getElementById("quantity").value = "";
+        document.getElementById("supplier").value = "";
+        addBtn.textContent = "Add Stock";
+        addBtn.onclick = addStock;
+        loadStock();
+      });
+    };
+  }
+
+  function deleteItem(key) {
+    if (confirm("Are you sure you want to delete this item?")) {
+      db.ref(`stock/${key}`).remove();
+    }
+  }
+
+  function doneStock() {
+    stockRef.once("value", (snapshot) => {
+      const data = snapshot.val();
+
+      if (!data) {
+        alert("No stock data to move!");
+        return;
+      }
+
+      const promises = [];
+
+      Object.entries(data).forEach(([key, item]) => {
+        const newListRef = stocklistRef.push();
+        const promise = newListRef.set(item).then(() => {
+          return stockRef.child(key).remove();
+        });
+        promises.push(promise);
+      });
+
+      Promise.all(promises).then(() => {
+        alert("Stock moved to stocklist and deleted from stock.");
+        loadStock();
+      });
+    });
+  }
+
+  window.onload = loadStock;
+</script>
+
+</body>
+</html>
